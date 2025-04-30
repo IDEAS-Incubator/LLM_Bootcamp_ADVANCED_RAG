@@ -1,3 +1,7 @@
+import os
+# Set USER_AGENT environment variable
+os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
+
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
