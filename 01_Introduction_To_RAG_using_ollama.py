@@ -4,7 +4,6 @@ import os
 # Set USER_AGENT environment variable
 os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
 
-
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import WebBaseLoader
@@ -13,9 +12,16 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 import bs4
 
+"""
+| Parameter | Impact |
+|:---|:---|
+| `chunk_size` too small | → Less context for LLM, may miss meaning |
+| `chunk_size` too large | → Slower search, noisy embeddings, risk of truncation |
+| `chunk_overlap` too small | → Risk of broken thoughts at chunk boundaries |
+| `chunk_overlap` too large | → Redundant context, more memory usage, slower indexing |
 
 
-
+"""
 # ---- INDEXING ----
 
 loader = WebBaseLoader(
@@ -50,7 +56,7 @@ llm = OllamaLLM(model="llama3.2")  # or any model you have installed
 def format_docs(docs):
     return "\n\n".join([doc.page_content for doc in docs])
 
-# ✅ Fix applied here
+
 rag_chain = (
     {"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()}
     | RunnableLambda(lambda x: prompt_template.format(**x))

@@ -10,7 +10,7 @@ from langchain.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 import bs4
-import os
+
 
 # ---- STEP 1: LOAD & INDEX ----
 
@@ -31,10 +31,12 @@ retriever = vectorstore.as_retriever()
 
 # ---- STEP 2: QUERY TRANSFORMATION ----
 
-multi_query_template = """You are an AI assistant. Rewrite the question in 5 different ways to improve document retrieval.
+multi_query_template = """
+You are an AI assistant. Rewrite the question in 5 different ways to improve document retrieval.
 Separate each version with a newline.
 
-Original question: {question}"""
+Original question: {question}
+"""
 
 prompt = PromptTemplate.from_template(multi_query_template)
 llm = OllamaLLM(model="llama3.2")
