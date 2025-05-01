@@ -153,3 +153,8 @@ xxhash==3.5.0
 yarl==1.19.0
 zipp==3.21.0
 zstandard==0.23.0
+scikit-learn
+langchain-community
+chromadb
+langchain-chroma
+langgraph
