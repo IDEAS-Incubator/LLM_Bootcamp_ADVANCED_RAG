@@ -9,7 +9,6 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.prompts import PromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from langchain.load import dumps, loads
 import bs4
 import numpy as np
 
@@ -99,21 +98,25 @@ def reciprocal_rank_fusion(results: list[list], k=60):
     for docs in results:
         # Iterate through each document in the list, with its rank (position in the list)
         for rank, doc in enumerate(docs):
-            # Convert the document to a string format to use as a key
-            doc_str = dumps(doc)
-            # If the document is not yet in the fused_scores dictionary, add it with an initial score of 0
-            if doc_str not in fused_scores:
-                fused_scores[doc_str] = 0
+            # Use document content as key
+            doc_key = doc.page_content[:100]  # Use first 100 chars as key
+            if doc_key not in fused_scores:
+                fused_scores[doc_key] = {
+                    'score': 0,
+                    'doc': doc
+                }
             # Update the score of the document using the RRF formula: 1 / (rank + k)
-            fused_scores[doc_str] += 1 / (rank + k)
+            fused_scores[doc_key]['score'] += 1 / (k + rank)
 
     # Sort the documents based on their fused scores in descending order
-    reranked_results = [
-        (loads(doc), score)
-        for doc, score in sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
-    ]
+    reranked_results = sorted(
+        fused_scores.values(),
+        key=lambda x: x['score'],
+        reverse=True
+    )
 
-    return reranked_results
+    # Return just the documents in order
+    return [item['doc'] for item in reranked_results]
 
 rag_prompt = PromptTemplate.from_template("""
 Answer the question based on the following context.
@@ -164,10 +167,7 @@ def retrieve_with_rag_fusion(original_question):
     all_results = [direct_docs, hyde_docs, multi_query_docs]
     reranked_docs = reciprocal_rank_fusion(all_results)
     
-    # Extract just the documents from the reranked results
-    final_docs = [doc for doc, score in reranked_docs]
-    
-    return final_docs
+    return reranked_docs
 
 # ---- STEP 4: RUN ----
 
