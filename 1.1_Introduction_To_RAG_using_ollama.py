@@ -64,4 +64,5 @@ rag_chain = (
     | StrOutputParser()
 )
 
-print(rag_chain.invoke("Types of Memory?"))
+print(rag_chain.invoke("What is Task Decomposition?"))
+      

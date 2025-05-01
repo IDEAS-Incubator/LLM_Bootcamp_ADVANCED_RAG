@@ -2,7 +2,6 @@
 
 This project implements a Retrieval-Augmented Generation (RAG) system using LangChain and Ollama. It demonstrates how to build a question-answering system that combines document retrieval with large language models.
 
-## Project Structure
 Below is a detailed overview of each Python script in this repository:
 
 - **01_Introduction_To_RAG_using_ollama.py**
