@@ -11,7 +11,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.retrievers.multi_vector import MultiVectorRetriever
 from langchain.storage import InMemoryByteStore
-import bs4, uuid, os
+import bs4, uuid
 
 # ---- STEP 1: Load Web Docs ----
 
@@ -41,9 +41,9 @@ summarizer_chain = (
     | StrOutputParser()
 )
 
-print("\n⏳ Summarizing...")
+print("\n Summarizing...")
 summaries = summarizer_chain.batch(docs, {"max_concurrency": 5})
-print("✅ Summarization complete.")
+print("Summarization complete.")
 
 # ---- STEP 3: Embed Summaries + Store in Chroma ----
 
@@ -69,12 +69,12 @@ retriever = MultiVectorRetriever(
 retriever.vectorstore.add_documents(summary_docs)
 retriever.docstore.mset(list(zip(doc_ids, docs)))
 
-print(f"\n✅ Indexed {len(summary_docs)} summarized chunks to ChromaDB.")
+print(f"\n Indexed {len(summary_docs)} summarized chunks to ChromaDB.")
 
 # ---- STEP 4: Try Query ----
 
 query = "How do autonomous agents use memory for decision making?"
-print(f"\n🔍 Running query: {query}\n")
+print(f"\n Running query: {query}\n")
 
 results = retriever.invoke(query)
 

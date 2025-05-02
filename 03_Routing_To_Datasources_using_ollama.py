@@ -38,6 +38,7 @@ def prompt_router(input):
     chosen_prompt = prompt_templates[best_index]
 
     print("\n=== Prompt Routing Decision ===")
+    # need to update the code
     print("Using MATH prompt" if best_index == 1 else "Using PHYSICS prompt")
     return PromptTemplate.from_template(chosen_prompt)
 

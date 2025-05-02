@@ -20,7 +20,6 @@ import bs4
 | `chunk_overlap` too small | → Risk of broken thoughts at chunk boundaries |
 | `chunk_overlap` too large | → Redundant context, more memory usage, slower indexing |
 
-
 """
 # ---- INDEXING ----
 
@@ -65,3 +64,6 @@ rag_chain = (
 )
 
 print(rag_chain.invoke("Types of Memory?"))
+
+# results = rag_chain.invoke("how agent does planning")
+# print("reply from LLM : ", results)
