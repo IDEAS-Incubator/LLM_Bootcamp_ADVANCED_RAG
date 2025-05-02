@@ -11,7 +11,6 @@ from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 import bs4
 
-
 # ---- STEP 1: LOAD & INDEX ----
 
 loader = WebBaseLoader(
@@ -29,19 +28,20 @@ embedding_model = OllamaEmbeddings(model="nomic-embed-text")
 vectorstore = Chroma.from_documents(documents=splits, embedding=embedding_model)
 retriever = vectorstore.as_retriever()
 
-# ---- STEP 2: QUERY TRANSFORMATION ----
+# ---- STEP 2: STEPBACK QUERY GENERATION ----
 
-multi_query_template = """
-You are an AI assistant. Rewrite the question in 5 different ways to improve document retrieval.
-Separate each version with a newline.
+stepback_template = """
+You are an AI assistant. Given a specific question, generate a more general, high-level question that would help understand the broader context.
+The stepback question should focus on the underlying concepts and principles.
 
-Original question: {question}
-"""
+Specific question: {question}
 
-prompt = PromptTemplate.from_template(multi_query_template)
+Stepback question:"""
+
+prompt = PromptTemplate.from_template(stepback_template)
 llm = OllamaLLM(model="llama3.2")
 
-generate_queries_chain = (
+generate_stepback_chain = (
     {"question": RunnablePassthrough()}
     | prompt
     | llm
@@ -61,42 +61,38 @@ Question: {question}
 
 format_docs = lambda docs: "\n\n".join([doc.page_content for doc in docs])
 
-def retrieve_from_all_queries(original_question):
-    # Step 1: generate query variants
-    generated_text = generate_queries_chain.invoke(original_question)
-    queries = [q.strip() for q in generated_text.strip().split("\n") if q.strip()]
-
-    # Print logs
+def retrieve_with_stepback(original_question):
+    # Step 1: generate stepback question
+    stepback_question = generate_stepback_chain.invoke(original_question)
+    
     print("\n=== Original Question ===")
     print(original_question)
-    print("\n=== Generated Rephrased Questions ===")
-    for idx, q in enumerate(queries, 1):
-        print(f"{idx}. {q}")
+    print("\n=== Generated Stepback Question ===")
+    print(stepback_question)
 
-    # Step 2: retrieve docs using `.invoke()` instead of deprecated `.get_relevant_documents()`
-    all_docs = []
-    for q in queries:
-        results = retriever.invoke(q)
-        all_docs.extend(results)
-
-    # Step 3: remove duplicates
+    # Step 2: retrieve docs for both questions
+    original_docs = retriever.invoke(original_question)
+    stepback_docs = retriever.invoke(stepback_question)
+    
+    # Step 3: combine and remove duplicates
+    all_docs = original_docs + stepback_docs
     seen = set()
     unique_docs = []
     for doc in all_docs:
         if doc.page_content not in seen:
             seen.add(doc.page_content)
             unique_docs.append(doc)
-
+    
     return unique_docs
 
 # ---- STEP 4: RUN ----
 
-question = "How does memory help autonomous agents improve performance?"
-relevant_docs = retrieve_from_all_queries(question)
+question = "How do autonomous agents use memory to improve their decision-making process?"
+relevant_docs = retrieve_with_stepback(question)
 
 # Format + LLM call
 final_prompt = rag_prompt.format(context=format_docs(relevant_docs), question=question)
 answer = llm.invoke(final_prompt)
 
 print("\n=== Final Answer ===")
-print(answer)
+print(answer) 

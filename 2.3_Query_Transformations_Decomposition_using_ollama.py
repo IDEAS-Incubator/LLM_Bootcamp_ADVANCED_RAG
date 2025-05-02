@@ -1,0 +1,137 @@
+import os
+# Set USER_AGENT environment variable
+os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
+
+from langchain_ollama import OllamaLLM, OllamaEmbeddings
+from langchain_community.vectorstores import Chroma
+from langchain_community.document_loaders import WebBaseLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.prompts import PromptTemplate, ChatPromptTemplate
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+import bs4
+
+# ---- STEP 1: LOAD & INDEX ----
+
+loader = WebBaseLoader(
+    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
+    bs_kwargs=dict(
+        parse_only=bs4.SoupStrainer(class_=("post-content", "post-title", "post-header"))
+    ),
+)
+docs = loader.load()
+
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
+splits = text_splitter.split_documents(docs)
+
+embedding_model = OllamaEmbeddings(model="nomic-embed-text")
+vectorstore = Chroma.from_documents(documents=splits, embedding=embedding_model)
+retriever = vectorstore.as_retriever()
+
+# ---- STEP 2: QUERY DECOMPOSITION SETUP ----
+
+decomposition_template = """
+You are an AI assistant. Given a complex question, break it down into 3-4 simpler sub-questions.
+Each sub-question should focus on a specific aspect of the original question.
+Format each sub-question on a new line.
+
+Complex question: {question}
+
+Sub-questions:"""
+
+prompt = PromptTemplate.from_template(decomposition_template)
+llm = OllamaLLM(model="llama3.2")
+
+generate_subquestions_chain = (
+    {"question": RunnablePassthrough()}
+    | prompt
+    | llm
+    | StrOutputParser()
+)
+
+# ---- STEP 3: RAG ANSWERING WITH DECOMPOSITION ----
+
+# RAG prompt for individual sub-questions
+rag_prompt = PromptTemplate.from_template("""
+Answer the question based on the following context.
+
+Context:
+{context}
+
+Question: {question}
+""")
+
+# Final synthesis prompt
+synthesis_template = """Here is a set of Q+A pairs:
+
+{context}
+
+Use these to synthesize an answer to the question: {question}
+"""
+
+synthesis_prompt = ChatPromptTemplate.from_template(synthesis_template)
+
+def format_qa_pairs(questions, answers):
+    """Format Q and A pairs"""
+    formatted_string = ""
+    for i, (question, answer) in enumerate(zip(questions, answers), start=1):
+        formatted_string += f"Question {i}: {question}\nAnswer {i}: {answer}\n\n"
+    return formatted_string.strip()
+
+def retrieve_and_rag(question):
+    """RAG on each sub-question"""
+    
+    # Generate sub-questions
+    subquestions_text = generate_subquestions_chain.invoke(question)
+    subquestions = [q.strip() for q in subquestions_text.strip().split("\n") if q.strip()]
+    
+    print("\n=== Original Question ===")
+    print(question)
+    print("\n=== Generated Sub-questions ===")
+    for idx, q in enumerate(subquestions, 1):
+        print(f"{idx}. {q}")
+    
+    # Initialize a list to hold RAG chain results
+    rag_results = []
+    
+    # Answer each sub-question
+    for sub_question in subquestions:
+        # Retrieve documents for each sub-question
+        retrieved_docs = retriever.invoke(sub_question)
+        
+        # Format context
+        context = "\n\n".join([doc.page_content for doc in retrieved_docs])
+        
+        # Use retrieved documents and sub-question in RAG chain
+        answer = (rag_prompt | llm | StrOutputParser()).invoke({
+            "context": context,
+            "question": sub_question
+        })
+        rag_results.append(answer)
+    
+    return rag_results, subquestions
+
+# ---- STEP 4: RUN ----
+
+question = "How do autonomous agents use memory and planning to make decisions in complex environments?"
+
+# Get answers for each sub-question
+answers, questions = retrieve_and_rag(question)
+
+# Format Q+A pairs for synthesis
+context = format_qa_pairs(questions, answers)
+
+# Synthesize final answer
+final_rag_chain = (
+    synthesis_prompt
+    | llm
+    | StrOutputParser()
+)
+
+final_answer = final_rag_chain.invoke({
+    "context": context,
+    "question": question
+})
+
+print("\n=== Final Answer ===")
+print(final_answer) 
