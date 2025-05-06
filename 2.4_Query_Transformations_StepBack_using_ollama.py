@@ -51,13 +51,18 @@ generate_stepback_chain = (
 # ---- STEP 3: RAG ANSWERING ----
 
 rag_prompt = PromptTemplate.from_template("""
-Answer the question based on the following context.
+You are an intelligent assistant.
+
+Use the following context to answer the question. If the context is unclear, incomplete, or unrelated, feel free to use your own knowledge to give the best answer.
+
+Be clear, accurate, and to the point.
 
 Context:
 {context}
 
 Question: {question}
 """)
+
 
 format_docs = lambda docs: "\n\n".join([doc.page_content for doc in docs])
 

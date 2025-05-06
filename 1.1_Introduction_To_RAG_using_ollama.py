@@ -59,7 +59,9 @@ retriever = vectorstore.as_retriever()
 # ---- RETRIEVAL + GENERATION ----
 
 prompt_template = """
-Use the following context to answer the question.
+Use the following context to answer the question. 
+If the context does not help or is unrelated, you may answer from your own knowledge.
+
 Context:
 {context}
 

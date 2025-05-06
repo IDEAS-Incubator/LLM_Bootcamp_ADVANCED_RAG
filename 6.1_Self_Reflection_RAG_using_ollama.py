@@ -1,10 +1,8 @@
 import os
-# Set USER_AGENT environment variable
 os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
 
 # Set GRAPH_RECURSION_LIMIT to avoid recursion limit errors
 os.environ["GRAPH_RECURSION_LIMIT"] = "60"
-
 
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -14,7 +12,8 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, END
 from pprint import pprint
-import bs4, os
+
+import bs4
 
 """
 Self-Reflective RAG
@@ -68,23 +67,32 @@ Self-Reflection Prompt:
 
 grade_doc_prompt = PromptTemplate.from_template("""
 You are a grader assessing whether retrieved content is relevant to a user question.
+
 Context:
 {context}
-Question: {question}
+
+Question:
+{question}
+
 Answer with "yes" or "no" and explain briefly.
 """)
 
 rag_prompt = PromptTemplate.from_template("""
-Answer the question based on the following context.
+You are a helpful and knowledgeable assistant.
+
+Use the following context to answer the question. If the context is irrelevant or incomplete, use your own knowledge to give the best possible answer.
 
 Context:
 {context}
 
-Question: {question}
+Question:
+{question}
 """)
 
 grade_generation_prompt = PromptTemplate.from_template("""
-You are a helpful assistant evaluating whether the answer makes sense given the question and the retrieved context.
+You are evaluating whether the assistant's answer is helpful and appropriate.
+
+Even if the context does not directly support the answer, consider whether the answer still makes sense and is accurate based on the question.
 
 Context:
 {context}
@@ -100,7 +108,7 @@ Reply with one of:
 - "not useful"
 - "not supported"
 
-Explain why.
+Then briefly explain your reasoning.
 """)
 
 # ---- LangGraph State ----
@@ -109,6 +117,7 @@ class GraphState(dict):
     question: str
     context: str
     generation: str
+    attempts: int
 
 # ---- Nodes ----
 
@@ -118,25 +127,59 @@ def retrieve(state):
     print("\nRetrieved context.")
     return {"question": state["question"], "context": context}
 
+
 def grade_documents(state):
     prompt = grade_doc_prompt.format(context=state["context"], question=state["question"])
     result = llm.invoke(prompt).lower()
+
     print("\nDocument Grading Result:", result)
+
     if "yes" in result:
         return {"grade_documents": "generate"}
+
+    # NEW: fallback after 1 bad document attempt
+    if state.get("attempts", 0) >= 1:
+        print("⚠️ Context still not helpful. Using LLM to answer directly.")
+        fallback_answer = llm.invoke(f"Answer this using your own knowledge:\n{state['question']}")
+        return {
+            "grade_documents": "done",
+            "question": state["question"],
+            "generation": fallback_answer,
+            "context": "No relevant context found.",
+            "done": True
+        }
+
     return {"grade_documents": "transform_query"}
 
 def generate(state):
+    if state.get("done"):
+        print("\n💡 Final Fallback Answer (No relevant context found):")
+        print(state["generation"])
+        return {
+            **state,
+            "grade_generation_result": "useful"
+        }
+
     prompt = rag_prompt.format(context=state["context"], question=state["question"])
     answer = llm.invoke(prompt)
+
     print("\nGenerated Answer:\n", answer)
     return {"generation": answer, "context": state["context"], "question": state["question"]}
 
 def transform_query(state):
-    print("\nRephrasing query (looping back to retrieve)...")
-    return {"question": state["question"]}  # In a real setup, you'd transform it
+    
+    print("\n💬 Generated Answer:\n", answer)
+    return {
+        "generation": answer,
+        "context": state["context"],
+        "question": state["question"],
+        "attempts": state.get("attempts", 0)
+    }
 
 def grade_generation_v_documents_and_question(state):
+    if state.get("done"):
+        return "useful"
+
     prompt = grade_generation_prompt.format(
         context=state["context"],
         generation=state["generation"],
@@ -166,11 +209,20 @@ workflow.add_edge("retrieve", "grade_documents")
 workflow.add_conditional_edges("grade_documents", lambda x: x["grade_documents"], {
     "generate": "generate",
     "transform_query": "transform_query",
+    "done": END  # Exit early with LLM-only answer
 })
 
 workflow.add_edge("transform_query", "retrieve")
 
-workflow.add_conditional_edges("generate", grade_generation_v_documents_and_question, {
+def condition_after_generate(state):
+    if state.get("done"):
+        return "useful"
+    elif state.get("grade_generation_result") == "useful":
+        return "useful"
+    else:
+        return grade_generation_v_documents_and_question(state)
+
+workflow.add_conditional_edges("generate", condition_after_generate, {
     "useful": END,
     "not useful": "transform_query",
     "not supported": "generate"

@@ -31,13 +31,16 @@ retriever = vectorstore.as_retriever()
 # ---- STEP 2: QUERY DECOMPOSITION SETUP ----
 
 decomposition_template = """
-You are an AI assistant. Given a complex question, break it down into 3-4 simpler sub-questions.
-Each sub-question should focus on a specific aspect of the original question.
-Format each sub-question on a new line.
+You are an AI assistant.
+
+Given a complex question, break it down into 3 or 4 simpler sub-questions that each explore one part of the topic.
+Make the sub-questions easy to understand and focused on specific concepts. Each should help answer the main question when combined.
 
 Complex question: {question}
 
-Sub-questions:"""
+Sub-questions:
+"""
+
 
 prompt = PromptTemplate.from_template(decomposition_template)
 llm = OllamaLLM(model="llama3.2")
@@ -53,7 +56,9 @@ generate_subquestions_chain = (
 
 # RAG prompt for individual sub-questions
 rag_prompt = PromptTemplate.from_template("""
-Answer the question based on the following context.
+You are a helpful assistant.
+
+Use the following context to answer the question. If the context is unclear, incomplete, or unrelated, use your own knowledge to provide the best answer.
 
 Context:
 {context}
@@ -61,13 +66,22 @@ Context:
 Question: {question}
 """)
 
-# Final synthesis prompt
-synthesis_template = """Here is a set of Q+A pairs:
 
+# Final synthesis prompt
+synthesis_template = """
+You are a helpful assistant.
+
+Here is a list of sub-questions and their answers related to a complex question.
+
+Use these to write a single, clear, well-organized answer to the original question. 
+If some sub-answers are weak or unrelated, rely on your general knowledge to fill in the gaps.
+
+Q+A Pairs:
 {context}
 
-Use these to synthesize an answer to the question: {question}
+Original Question: {question}
 """
+
 
 synthesis_prompt = ChatPromptTemplate.from_template(synthesis_template)
 

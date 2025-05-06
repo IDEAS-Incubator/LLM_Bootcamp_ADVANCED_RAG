@@ -10,7 +10,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from sklearn.metrics import pairwise_distances
-import os, bs4
+import bs4
 
 """
 RAG-Fusion - multiple queries for improved retrieval by using several variations of the question
@@ -92,7 +92,21 @@ def reciprocal_rank_fusion(results_lists, k=60):
     sorted_docs = sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
     return [doc for doc_id, _ in sorted_docs for results in results_lists for doc in results if doc.page_content.startswith(doc_id)]
 
-# ---- STEP 6: Run a Query with RAG-Fusion ----
+# ---- STEP 6: Prompt for Answer Generation with Fallback ----
+
+rag_prompt = ChatPromptTemplate.from_template("""
+You are a helpful assistant.
+
+Use the following context to answer the user's question. 
+If the context is unrelated, incomplete, or unhelpful, use your own knowledge to give the best possible answer.
+
+Context:
+{context}
+
+Question: {question}
+""")
+
+# ---- STEP 7: Run a Query with RAG-Fusion ----
 
 question = "How do autonomous agents use memory ?"
 print(f"\n User Original Question: {question}")
@@ -109,12 +123,28 @@ results_per_query = [retriever.invoke(q) for q in queries]
 # Fuse - merge
 final_results = reciprocal_rank_fusion(results_per_query)
 
-# ---- STEP 7: Show Final Results ----
+# Combine context from top RRF results
+combined_context = "\n\n".join([doc.page_content for doc in final_results[:3]])
 
 print("\nTop Fused Results:")
 for i, doc in enumerate(final_results[:3], 1):
     print(f"\n[{i}] {doc.page_content[:500]}...\n---")
 
+# Final answer generation
+answer_chain = (
+    {"context": lambda _: combined_context, "question": RunnablePassthrough()}
+    | rag_prompt
+    | llm
+    | StrOutputParser()
+)
 
-# todo:
-# do LLM query by using the final_results    
+final_answer = answer_chain.invoke(question)
+
+# ---- STEP 8: Display Results ----
+
+print("\n📚 Top Retrieved Context Chunks:")
+for i, doc in enumerate(final_results[:3], 1):
+    print(f"\n[{i}] {doc.page_content[:500]}...\n---")
+
+print("\n💡 Final Answer:")
+print(final_answer)

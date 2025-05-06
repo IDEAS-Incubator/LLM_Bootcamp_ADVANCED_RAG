@@ -10,19 +10,21 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
 # Step 1: Define your prompts
-physics_template = """You are a very smart physics professor. \
-You are great at answering questions about physics in a concise and easy-to-understand manner. \
-When you don't know the answer to a question, you admit that you don't know.
+physics_template = """You are a brilliant physics professor known for making complex physics topics easy to understand.
 
-Here is a question:
+Answer the following question clearly and accurately. If you are unsure or the question isn't related to physics, say so honestly.
+
+Question:
 {query}"""
 
-math_template = """You are a very good mathematician. You are great at answering math questions. \
-You are so good because you are able to break down hard problems into their component parts, \
-answer the component parts, and then put them together to answer the broader question.
 
-Here is a question:
+math_template = """You are a skilled mathematician who explains math problems step-by-step.
+
+Break down the problem, solve the parts if needed, and then provide a complete answer. If the question isn't math-related, it's okay to say you don't know.
+
+Question:
 {query}"""
+
 
 prompt_templates = [physics_template, math_template]
 
