@@ -52,13 +52,18 @@ generate_perspectives_chain = (
 # ---- STEP 3: RAG ANSWERING ----
 
 rag_prompt = PromptTemplate.from_template("""
-Answer the question based on the following context.
+You are an intelligent assistant.
+
+Use the following context to answer the question. If the context is not helpful, unrelated, or incomplete, feel free to answer using your own knowledge.
+
+Clearly and directly answer the question.
 
 Context:
 {context}
 
 Question: {question}
 """)
+
 
 format_docs = lambda docs: "\n\n".join([doc.page_content for doc in docs])
 

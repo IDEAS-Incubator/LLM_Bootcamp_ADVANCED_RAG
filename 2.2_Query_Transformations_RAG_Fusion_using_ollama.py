@@ -119,7 +119,11 @@ def reciprocal_rank_fusion(results: list[list], k=60):
     return [item['doc'] for item in reranked_results]
 
 rag_prompt = PromptTemplate.from_template("""
-Answer the question based on the following context.
+You are an intelligent assistant.
+
+Use the following context to answer the question. If the context is not helpful, unrelated, or incomplete, feel free to answer using your own knowledge.
+
+Clearly and directly answer the question.
 
 Context:
 {context}
