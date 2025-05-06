@@ -1,6 +1,8 @@
-# pip install -U langchain langchain-community langchain-ollama langgraph chromadb beautifulsoup4
-
 import os
+from typing import TypedDict, List
+from pprint import pprint
+import bs4
+
 # Set USER_AGENT environment variable
 os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
 
@@ -8,15 +10,9 @@ from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_community.document_loaders import WebBaseLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, END
-
-import bs4, os
-from typing import TypedDict, List
-from pprint import pprint
-
 
 # ----- STEP 1: Load, Split & Index Docs -----
 
@@ -28,9 +24,10 @@ urls = [
 
 docs = []
 for url in urls:
-    loader = WebBaseLoader(web_paths=(url,), bs_kwargs=dict(
-        parse_only=bs4.SoupStrainer(class_=("post-content", "post-title", "post-header"))
-    ))
+    loader = WebBaseLoader(
+        web_paths=(url,),
+        bs_kwargs=dict(parse_only=bs4.SoupStrainer(class_=("post-content", "post-title", "post-header")))
+    )
     docs.extend(loader.load())
 
 splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=50)
@@ -62,14 +59,6 @@ Context:
 Reply with "yes" or "no" and explain briefly.
 """)
 
-rewrite_prompt = PromptTemplate.from_template("""
-The retrieved documents were not relevant.
-
-Please rewrite the user's question to make it more specific or clear.
-
-Original question: {question}
-""")
-
 rag_prompt = PromptTemplate.from_template("""
 Use the following context to answer the question.
 
@@ -95,18 +84,21 @@ def grade_documents(state: AgentState):
     context = "\n\n".join(doc.page_content for doc in state["docs"])
     result = llm.invoke(doc_grader_prompt.format(question=question, context=context)).lower()
     print("\n📚 Document grading result:", result)
-    return "yes" if "yes" in result else "no"
 
-def rewrite(state: AgentState):
-    original = state["question"]
-    rewritten = llm.invoke(rewrite_prompt.format(question=original))
-    print("\n✍️ Rewritten question:", rewritten)
-    return {"question": rewritten}
+    if "yes" in result:
+        return "yes"
+    return "fallback"
 
 def generate(state: AgentState):
     context = "\n\n".join(doc.page_content for doc in state["docs"])
     prompt = rag_prompt.format(context=context, question=state["question"])
     answer = llm.invoke(prompt)
+    return {"generation": answer}
+
+def fallback(state: AgentState):
+    question = state["question"]
+    print("⚠️ Using LLM knowledge to answer directly (no relevant context).")
+    answer = llm.invoke(f"Answer this using your own knowledge:\n{question}")
     return {"generation": answer}
 
 # ----- STEP 5: Build LangGraph -----
@@ -115,8 +107,8 @@ graph = StateGraph(AgentState)
 graph.add_node("agent", agent)
 graph.add_node("retrieve", retrieve)
 graph.add_node("grade", grade_documents)
-graph.add_node("rewrite", rewrite)
 graph.add_node("generate", generate)
+graph.add_node("fallback", fallback)
 
 graph.set_entry_point("agent")
 
@@ -126,11 +118,11 @@ graph.add_conditional_edges("agent", lambda _: "continue", {
 
 graph.add_conditional_edges("retrieve", grade_documents, {
     "yes": "generate",
-    "no": "rewrite"
+    "fallback": "fallback"
 })
 
-graph.add_edge("rewrite", "agent")
 graph.add_edge("generate", END)
+graph.add_edge("fallback", END)
 
 app = graph.compile()
 

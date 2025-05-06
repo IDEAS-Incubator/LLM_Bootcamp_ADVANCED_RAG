@@ -51,7 +51,11 @@ generate_hypothetical_doc_chain = (
 # ---- STEP 3: RAG ANSWERING ----
 
 rag_prompt = PromptTemplate.from_template("""
-Answer the question based on the following context.
+You are a knowledgeable assistant.
+
+Use the following context to answer the question. If the context is missing, unclear, or doesn't directly answer the question, use your own understanding to provide a complete and helpful answer.
+
+Be clear, concise, and avoid over-explaining.
 
 Context:
 {context}

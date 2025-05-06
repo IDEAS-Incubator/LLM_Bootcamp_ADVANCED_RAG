@@ -10,19 +10,16 @@ from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 
 # Step 1: Define your prompts
-physics_template = """You are a very smart physics professor. \
-You are great at answering questions about physics in a concise and easy-to-understand manner. \
-When you don't know the answer to a question, you admit that you don't know.
+physics_template = """You are a very smart physics professor. 
+You are great at answering questions about physics in a concise and easy-to-understand manner. 
+If the question is not directly about physics, use your general knowledge to help answer it as best you can."""
 
-Here is a question:
-{query}"""
 
-math_template = """You are a very good mathematician. You are great at answering math questions. \
-You are so good because you are able to break down hard problems into their component parts, \
-answer the component parts, and then put them together to answer the broader question.
+math_template = """You are a very good mathematician. 
+You are great at answering math questions. You are so good because you are able to break down hard problems into parts, 
+solve the parts, and combine them for the final answer. 
+If the question is not directly about math, use your reasoning and general knowledge to provide an answer."""
 
-Here is a question:
-{query}"""
 
 prompt_templates = [physics_template, math_template]
 
@@ -54,16 +51,17 @@ def prompt_router(input):
         selected_prompts.append(prompt_templates[idx])
     
     # Create a combined prompt
-    combined_prompt = """You are an expert in both physics and mathematics. \
-You will answer the question by considering perspectives from both fields.
+    combined_prompt = """You are an expert in both physics and mathematics.
 
-Here are the specific perspectives to consider:
-{perspectives}
+    Consider each of the following expert perspectives, and answer the question using relevant knowledge from those fields. 
+    If the question isn’t specific to physics or math, use your general knowledge to provide a complete and thoughtful response.
 
-Here is the question:
-{query}
+    Perspectives:
+    {perspectives}
 
-Please provide a comprehensive answer that synthesizes information from all relevant perspectives."""
+    Question:
+    {query}
+    """
 
     # Format the perspectives
     perspectives = "\n\n".join([f"Perspective {i+1}:\n{prompt}" for i, prompt in enumerate(selected_prompts)])
