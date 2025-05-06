@@ -2,6 +2,9 @@ import os
 # Set USER_AGENT environment variable
 os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
 
+# Set GRAPH_RECURSION_LIMIT to avoid recursion limit errors
+os.environ["GRAPH_RECURSION_LIMIT"] = "60"
+
 
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -13,7 +16,22 @@ from langgraph.graph import StateGraph, END
 from pprint import pprint
 import bs4, os
 
+"""
+Self-Reflective RAG
+Step-by-Step Flow:
+1.	User Query → Retrieve top-k docs → Generate initial answer
+2.	Self-Reflection Prompt: 
+    Ask LLM to analyze its own answer:
+        o	“Was the answer complete?”
+        o	“Did I use evidence from the documents?”
+        o	“Was anything missing or vague ?”
+3.	If reflection finds gaps ( anything worng or missing):
+    o	Reformulate the query
+    o	Trigger secondary retrieval
+    o	Generate improved answer
+4.	Return final verified answer
 
+"""
 # ---- Load and index docs ----
 
 urls = [
@@ -30,7 +48,7 @@ for url in urls:
     )
     docs.extend(loader.load())
 
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=0)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=50)
 doc_splits = text_splitter.split_documents(docs)
 
 embedding_model = OllamaEmbeddings(model="nomic-embed-text")
@@ -40,6 +58,13 @@ retriever = vectorstore.as_retriever()
 llm = OllamaLLM(model="llama3.2")
 
 # ---- Prompt templates ----
+
+"""
+Self-Reflection Prompt: 
+    Ask LLM to analyze its own answer:
+        o	“content is relevant to a user question ?”
+        o	“whether the answer makes sense given the question and the retrieved context ?”
+"""
 
 grade_doc_prompt = PromptTemplate.from_template("""
 You are a grader assessing whether retrieved content is relevant to a user question.
@@ -90,13 +115,13 @@ class GraphState(dict):
 def retrieve(state):
     docs = retriever.invoke(state["question"])
     context = "\n\n".join([doc.page_content for doc in docs])
-    print("\n📥 Retrieved context.")
+    print("\nRetrieved context.")
     return {"question": state["question"], "context": context}
 
 def grade_documents(state):
     prompt = grade_doc_prompt.format(context=state["context"], question=state["question"])
     result = llm.invoke(prompt).lower()
-    print("\n🧪 Document Grading Result:", result)
+    print("\nDocument Grading Result:", result)
     if "yes" in result:
         return {"grade_documents": "generate"}
     return {"grade_documents": "transform_query"}
@@ -104,11 +129,11 @@ def grade_documents(state):
 def generate(state):
     prompt = rag_prompt.format(context=state["context"], question=state["question"])
     answer = llm.invoke(prompt)
-    print("\n💬 Generated Answer:\n", answer)
+    print("\nGenerated Answer:\n", answer)
     return {"generation": answer, "context": state["context"], "question": state["question"]}
 
 def transform_query(state):
-    print("\n🔁 Rephrasing query (looping back to retrieve)...")
+    print("\nRephrasing query (looping back to retrieve)...")
     return {"question": state["question"]}  # In a real setup, you'd transform it
 
 def grade_generation_v_documents_and_question(state):
@@ -118,7 +143,7 @@ def grade_generation_v_documents_and_question(state):
         question=state["question"]
     )
     result = llm.invoke(prompt).lower()
-    print("\n🧠 Self-Reflection Result:", result)
+    print("\nSelf-Reflection Result:", result)
 
     if "not supported" in result:
         return "not supported"
@@ -153,20 +178,80 @@ workflow.add_conditional_edges("generate", grade_generation_v_documents_and_ques
 
 app = workflow.compile()
 
-# ---- Run It ----
+# ---- Run LangGraph Workflow ----
 
-question = "Explain how the different types of agent memory work?"
+question = "Explain how the different types of agent memory work ? "
+
+# question = "Explain how the different types of deep learning network works ?"
+
 inputs = {"question": question}
 
 print("\n=== Running Self-Reflective RAG for Question ===")
 print(question)
 print("===============================================")
 
+"""
+# orginal code to run the workflow
 for step in app.stream(inputs):
     for node, value in step.items():
-        pprint(f"🧩 Node '{node}':")
+        pprint(f"Node '{node}':")
     print("\n---\n")
 
-# Final output
-print("✅ Final Generation:")
-print(value.get("generation"))
+"""
+
+"""
+# Fix - 1 exception handling for recursion limit
+try:
+    for step in app.stream(inputs):
+        for node, value in step.items():
+            pprint(f"Node '{node}':")
+        print("\n---\n")
+except RecursionError as e:
+    print("\n RecursionError: The graph recursion limit was exceeded.")
+    print("Consider increasing the GRAPH_RECURSION_LIMIT environment variable.")
+    print(f"Error details: {e}")
+"""
+
+# Fix -2 check relevance of the user question before running the workflow
+relevance_prompt = PromptTemplate.from_template("""
+You are a relevance checker. Determine if the following question is related to the knowledge base.
+
+Knowledge Base Topics:
+- Agent memory
+- Prompt engineering
+- Adversarial attacks on LLMs
+
+Question:
+{question}
+
+Reply with "relevant" or "irrelevant".
+""")
+
+def check_relevance(question):
+    print("\n Checking question relevance...")
+    relevance = llm.invoke(relevance_prompt.format(question=question)).strip().lower()
+    print(f"Relevance Check Result: {relevance}")
+    return relevance == "relevant"
+
+
+# Check if the question is relevant to the knowledge base
+if not check_relevance(question):
+    print("\n The question is not relevant to the knowledge base. Bypassing RAG.")
+    print("Please ask a question related to agent memory, prompt engineering, or adversarial attacks on LLMs.")
+    # todo: query at LLM instead of using RAG
+else:
+    try:
+        for step in app.stream(inputs):
+            for node, value in step.items():
+                pprint(f"Node '{node}':")
+            print("\n---\n")
+    except RecursionError as e:
+        print("\n RecursionError: The graph recursion limit was exceeded.")
+        print("Consider increasing the GRAPH_RECURSION_LIMIT environment variable.")
+        print(f"Error details: {e}")
+
+    # Final output
+    print("Final Generation:")
+    print(value.get("generation"))
+
+
