@@ -15,10 +15,26 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage
+
+from pprint import pprint
+
+"""
+Adaptive RAG
+
+The pipeline follows these steps:
+
+Router Decision: Based on the user's question, decide whether to retrieve information from the vectorstore or perform a web search.
+Retrieve Context:
+If the router selects "vectorstore," retrieve relevant documents from the pre-indexed vector database.
+If the router selects "web_search," simulate a web search to retrieve external information.
+Generate Answer: Use the retrieved context to generate an answer to the user's question.
+Output Answer: Return the final answer to the user.
+
+"""
+
 from langgraph.graph import StateGraph, END
 
 # ---- STEP 1: Load & Split Documents ----
-
 
 urls = [
     "https://lilianweng.github.io/posts/2023-06-23-agent/",
@@ -177,9 +193,9 @@ question = "What's the latest on AI alignment conferences this year?"
 print("\n=== Running Adaptive RAG with Fallback ===")
 for step in app.stream({"question": question}):
     for node, output in step.items():
-        print(f"\n🧩 Node: {node}")
+        print(f"\n Node: {node}")
         pprint(output)
         print("\n---")
 
-print("\n✅ Final Answer:")
+print("\nFinal Answer:")
 pprint(output.get("generation"))

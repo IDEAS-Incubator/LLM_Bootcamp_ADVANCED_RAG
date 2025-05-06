@@ -19,6 +19,28 @@ from langgraph.graph import StateGraph, END
 # ---- STEP 1: Load, Split, Embed ----
 
 
+"""
+RAG Agent
+
+The pipeline follows these steps:
+
+Route Question: Decide whether to retrieve from the vectorstore or simulate a web search based on the user's query.
+Retrieve Documents: Retrieve relevant documents from a vectorstore.
+Grade Documents: Evaluate whether the retrieved documents are relevant to the user's question.
+Decide to Generate or Web Search:
+If the documents are sufficient, proceed to generate an answer.
+If the documents are insufficient, simulate a web search.
+Generate Answer: Use the retrieved context to generate an answer.
+Validate Answer:
+Check if the answer is supported by the context (hallucination check).
+Evaluate if the answer is useful to the user's question.
+Iterative Improvement:
+If the answer is unsupported, regenerate it.
+If the answer is not useful, simulate a web search for additional context.
+
+"""
+# ---- STEP 1: Load, Split & Embed ----
+
 urls = [
     "https://lilianweng.github.io/posts/2023-06-23-agent/",
     "https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/",
@@ -98,7 +120,14 @@ def grade_documents(state: GraphState):
     }
 
 def decide_to_generate(state: GraphState):
+    return "websearch" if state["web_search"] == "Yes" else "generate"
+
+def web_search(state: GraphState):
+    print(" Simulated web search used.")
+    fake_result = Document(page_content=f"Simulated web content for: {state['question']}")
+    # return {"documents": [fake_result], "question": state["question"]}
     return "fallback" if state["web_search"] == "Yes" else "generate"
+
 
 def generate(state: GraphState):
     context = "\n\n".join(doc.page_content for doc in state["documents"])
@@ -154,9 +183,9 @@ inputs = {
 print("\n=== 🧠 Running LLAMA 3 RAG Agent with Fallback ===")
 for step in app.stream(inputs):
     for node, value in step.items():
-        print(f"\n🧩 Node: {node}")
+        print(f"\n Node: {node}")
         pprint(value)
         print("\n---")
 
-print("\n✅ Final Answer:")
+print("\n Final Answer:")
 pprint(value.get("generation"))

@@ -23,21 +23,37 @@ import bs4
 """
 # ---- INDEXING ----
 
-loader = WebBaseLoader(
-    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
-    bs_kwargs=dict(
-        parse_only=bs4.SoupStrainer(
-            class_=("post-content", "post-title", "post-header")
-        )
-    ),
-)
-docs = loader.load()
+# Define the persistent directory for Chroma
+PERSIST_DIRECTORY = "./database/chroma_db"
 
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-splits = text_splitter.split_documents(docs)
+# Check if the database already exists
+if not os.path.exists(PERSIST_DIRECTORY):
+    # If the database doesn't exist, process and save the data
+    loader = WebBaseLoader(
+        web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
+        bs_kwargs=dict(
+            parse_only=bs4.SoupStrainer(
+                class_=("post-content", "post-title", "post-header")
+            )
+        ),
+    )
+    docs = loader.load()
 
-embedding_model = OllamaEmbeddings(model="nomic-embed-text")
-vectorstore = Chroma.from_documents(documents=splits, embedding=embedding_model)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splits = text_splitter.split_documents(docs)
+
+    embedding_model = OllamaEmbeddings(model="nomic-embed-text")
+    vectorstore = Chroma.from_documents(
+        documents=splits, embedding=embedding_model, persist_directory=PERSIST_DIRECTORY
+    )
+    vectorstore.persist()  # Save the vectorstore to disk
+else:
+    # If the database exists, load it directly
+    embedding_model = OllamaEmbeddings(model="nomic-embed-text")
+    vectorstore = Chroma(
+        persist_directory=PERSIST_DIRECTORY, embedding_function=embedding_model
+    )
+
 retriever = vectorstore.as_retriever()
 
 # ---- RETRIEVAL + GENERATION ----
@@ -66,6 +82,3 @@ rag_chain = (
 )
 
 print(rag_chain.invoke("Types of Memory?"))
-
-# results = rag_chain.invoke("how agent does planning")
-# print("reply from LLM : ", results)

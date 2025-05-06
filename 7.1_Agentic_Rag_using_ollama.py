@@ -14,6 +14,21 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.messages import HumanMessage
 from langgraph.graph import StateGraph, END
 
+from typing import TypedDict, List
+from pprint import pprint
+
+"""
+Overview of Agentic RAG
+The pipeline follows these steps:
+Agent Initialization: Extract the user's question from the input.
+Retrieve Documents: Retrieve relevant documents for the question.
+Grade Documents: Evaluate whether the retrieved documents are relevant to the question.
+Rewrite Query: If the documents are not relevant, rewrite the query to make it more specific or clear.
+Generate Answer: Use the retrieved documents to generate an answer.
+Iterative Improvement: Repeat the process until relevant documents are found or a satisfactory answer is generated.
+
+"""
+
 # ----- STEP 1: Load, Split & Index Docs -----
 
 urls = [
@@ -83,11 +98,16 @@ def grade_documents(state: AgentState):
     question = state["question"]
     context = "\n\n".join(doc.page_content for doc in state["docs"])
     result = llm.invoke(doc_grader_prompt.format(question=question, context=context)).lower()
-    print("\n📚 Document grading result:", result)
 
-    if "yes" in result:
-        return "yes"
-    return "fallback"
+    print("\n Document grading result:", result)
+    return "yes" if "yes" in result else "no"
+
+def rewrite(state: AgentState):
+    original = state["question"]
+    rewritten = llm.invoke(rewrite_prompt.format(question=original))
+    print("\n Rewritten question:", rewritten)
+    return {"question": rewritten}
+
 
 def generate(state: AgentState):
     context = "\n\n".join(doc.page_content for doc in state["docs"])
@@ -138,9 +158,9 @@ print("\n=== Running Agentic RAG ===")
 
 for step in app.stream(inputs):
     for key, value in step.items():
-        print(f"\n🧩 Node: {key}")
+        print(f"\n Node: {key}")
         pprint(value)
         print("\n---")
 
-print("\n✅ Final Answer:")
-pprint(value.get("generation"))
+print("\n Final Answer:")
+print(value.get("generation"))
