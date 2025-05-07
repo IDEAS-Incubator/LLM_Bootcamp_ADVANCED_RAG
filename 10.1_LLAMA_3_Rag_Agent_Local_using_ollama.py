@@ -16,7 +16,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, END
 
-# ---- STEP 1: Load, Split, Embed ----
+
 
 """
 RAG Agent
@@ -37,6 +37,48 @@ Iterative Improvement:
 If the answer is unsupported, regenerate it.
 If the answer is not useful, simulate a web search for additional context.
 """
+
+
+"""
+
++------------------+
+|   Entry Point    |
+|    Retrieve      |
+|   Documents      |
++------------------+
+         |
+         v
++------------------+
+|   Grade Docs     |
++------------------+
+         |
+   +-----+-----+
+   |           |
+   v           v
++-------+   +------------------+
+|Generate|   |  Simulate Web   |
+| Answer |   |     Search      |
++-------+   +------------------+
+                 |
+                 v
+         +------------------+
+         |   Generate       |
+         |    Answer        |
+         +------------------+
+                 |
+                 v
+         +------------------+
+         |     Fallback     |
+         | (LLM-Only Mode)  |
+         +------------------+
+                 |
+                 v
+         +------------------+
+         |       END        |
+         +------------------+
+
+"""
+
 
 # ---- STEP 1: Load, Split & Embed ----
 

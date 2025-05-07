@@ -32,6 +32,45 @@ Generate Answer: Use the retrieved context to generate an answer.
 Output Answer: Return the final answer to the user.
 
 """
+
+
+"""
++------------------+
+|   Entry Point    |
+|    Retrieve      |
+|   Documents      |
++------------------+
+         |
+         v
++------------------+
+|   Grade Docs     |
++------------------+
+         |
+   +-----+-----+
+   |           |
+   v           v
++-------+   +------------------+
+|Generate|   |  Rewrite Query  |
+| Answer |   +------------------+
++-------+           |
+                     v
+             +------------------+
+             |  Simulate Web    |
+             |     Search       |
+             +------------------+
+                     |
+                     v
+             +------------------+
+             |   Generate       |
+             |    Answer        |
+             +------------------+
+                     |
+                     v
+             +------------------+
+             |       END        |
+             +------------------+
+
+"""
 # ---- STEP 1: Load and Index Documents ----
 urls = [
     "https://lilianweng.github.io/posts/2023-06-23-agent/",

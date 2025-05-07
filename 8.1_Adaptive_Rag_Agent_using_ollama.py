@@ -32,6 +32,43 @@ Output Answer: Return the final answer to the user.
 
 """
 
+"""
+ChainGraph
++------------------+
+|   Entry Point    |
+|  Route Question  |
++------------------+
+         |
+   +-----+-----+
+   |           |
+   v           v
++------------------+       +------------------+
+| Retrieve Vector- |       |  Retrieve Web    |
+|     store        |       |   (Simulated)    |
++------------------+       +------------------+
+         |                       |
+         +-----------+-----------+
+                     |
+                     v
+         +-----------------------+
+         |    Grade Context      |
+         +-----------------------+
+                     |
+           +---------+---------+
+           |                   |
+           v                   v
+   +----------------+   +----------------+
+   |   Generate     |   |    Fallback    |
+   |   Answer       |   | (LLM-Only)     |
+   +----------------+   +----------------+
+           |                   |
+           +---------+---------+
+                     |
+                     v
+             +---------------+
+             |      END      |
+             +---------------+
+"""
 from langgraph.graph import StateGraph, END
 
 # ---- STEP 1: Load & Split Documents ----

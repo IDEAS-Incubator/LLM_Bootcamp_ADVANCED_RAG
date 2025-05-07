@@ -28,7 +28,50 @@ Generate Answer: Use the retrieved documents to generate an answer.
 Iterative Improvement: Repeat the process until relevant documents are found or a satisfactory answer is generated.
 
 """
+"""
++------------------+
+|   Entry Point    |
+|      Agent       |
++------------------+
+         |
+         v
++------------------+
+|    Retrieve      |
+|   Documents      |
++------------------+
+         |
+         v
++------------------+
+|   Grade Docs     |
++------------------+
+         |
+   +-----+-----+
+   |           |
+   v           v
++-------+   +-------+
+|Generate|  |Rewrite|
++-------+   +-------+
+   |           |
+   |           v
+   |     +------------------+
+   |     |    Retrieve      |
+   |     |   Documents      |
+   |     +------------------+
+   |           |
+   +-----------+
+         |
+         v
++------------------+
+|     Fallback     |
+| (LLM Knowledge)  |
++------------------+
+         |
+         v
++------------------+
+|       END        |
++------------------+
 
+"""
 # ----- STEP 1: Load, Split & Index Docs -----
 
 urls = [
