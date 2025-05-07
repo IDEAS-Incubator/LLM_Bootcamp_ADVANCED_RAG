@@ -1,6 +1,6 @@
+
 import os
-
-
+# Set USER_AGENT environment variable
 os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
 
 from typing import TypedDict, List
@@ -17,7 +17,6 @@ from langchain_core.documents import Document
 from langgraph.graph import StateGraph, END
 
 # ---- STEP 1: Load, Split, Embed ----
-
 
 """
 RAG Agent
@@ -37,8 +36,8 @@ Evaluate if the answer is useful to the user's question.
 Iterative Improvement:
 If the answer is unsupported, regenerate it.
 If the answer is not useful, simulate a web search for additional context.
-
 """
+
 # ---- STEP 1: Load, Split & Embed ----
 
 urls = [
@@ -120,14 +119,20 @@ def grade_documents(state: GraphState):
     }
 
 def decide_to_generate(state: GraphState):
-    return "websearch" if state["web_search"] == "Yes" else "generate"
+    # If the retrieved documents are not enough, simulate a web search.
+    if state["web_search"] == "No":
+        return "generate"
+    else:
+        return "websearch"
 
 def web_search(state: GraphState):
-    print(" Simulated web search used.")
+    print("Simulated web search used.")
+    # Simulate web search by returning a placeholder document
     fake_result = Document(page_content=f"Simulated web content for: {state['question']}")
-    # return {"documents": [fake_result], "question": state["question"]}
-    return "fallback" if state["web_search"] == "Yes" else "generate"
-
+    return {
+        "documents": [fake_result],
+        "question": state["question"]
+    }
 
 def generate(state: GraphState):
     context = "\n\n".join(doc.page_content for doc in state["documents"])
@@ -157,15 +162,17 @@ graph.add_node("retrieve", retrieve)
 graph.add_node("grade_documents", grade_documents)
 graph.add_node("generate", generate)
 graph.add_node("fallback", fallback)
+graph.add_node("websearch", web_search)
 
 graph.set_entry_point("retrieve")
 graph.add_edge("retrieve", "grade_documents")
 
 graph.add_conditional_edges("grade_documents", decide_to_generate, {
     "generate": "generate",
-    "fallback": "fallback"
+    "websearch": "websearch"  # Make sure the websearch path is handled
 })
 
+graph.add_edge("websearch", "generate")  # Route to next step if web search happens
 graph.add_edge("generate", END)
 graph.add_edge("fallback", END)
 
