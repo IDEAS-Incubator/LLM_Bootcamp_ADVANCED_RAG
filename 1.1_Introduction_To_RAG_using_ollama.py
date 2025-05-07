@@ -7,7 +7,7 @@ os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import WebBaseLoader
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 import bs4
@@ -27,6 +27,7 @@ import bs4
 PERSIST_DIRECTORY = "./database/chroma_db"
 
 # Check if the database already exists
+# Rest of your code remains the same
 if not os.path.exists(PERSIST_DIRECTORY):
     # If the database doesn't exist, process and save the data
     loader = WebBaseLoader(
@@ -46,7 +47,6 @@ if not os.path.exists(PERSIST_DIRECTORY):
     vectorstore = Chroma.from_documents(
         documents=splits, embedding=embedding_model, persist_directory=PERSIST_DIRECTORY
     )
-    vectorstore.persist()  # Save the vectorstore to disk
 else:
     # If the database exists, load it directly
     embedding_model = OllamaEmbeddings(model="nomic-embed-text")
@@ -55,6 +55,7 @@ else:
     )
 
 retriever = vectorstore.as_retriever()
+
 
 # ---- RETRIEVAL + GENERATION ----
 

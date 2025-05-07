@@ -37,6 +37,7 @@ ENV/
 .env.local
 .env.*.local
 
+database/
 
 # ChromaDB
 chroma/
