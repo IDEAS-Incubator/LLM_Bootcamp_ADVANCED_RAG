@@ -74,6 +74,14 @@ Context:
 Reply with "yes" or "no" and explain briefly.
 """)
 
+rewrite_prompt = PromptTemplate.from_template("""
+Rewrite the following question to be more specific and clear:
+
+Original question: {question}
+
+Rewritten question:
+""")
+
 rag_prompt = PromptTemplate.from_template("""
 Use the following context to answer the question.
 
@@ -127,6 +135,7 @@ graph = StateGraph(AgentState)
 graph.add_node("agent", agent)
 graph.add_node("retrieve", retrieve)
 graph.add_node("grade", grade_documents)
+graph.add_node("rewrite", rewrite)
 graph.add_node("generate", generate)
 graph.add_node("fallback", fallback)
 
@@ -138,7 +147,12 @@ graph.add_conditional_edges("agent", lambda _: "continue", {
 
 graph.add_conditional_edges("retrieve", grade_documents, {
     "yes": "generate",
+    "no": "rewrite",
     "fallback": "fallback"
+})
+
+graph.add_conditional_edges("rewrite", lambda _: "continue", {
+    "continue": "retrieve"
 })
 
 graph.add_edge("generate", END)
