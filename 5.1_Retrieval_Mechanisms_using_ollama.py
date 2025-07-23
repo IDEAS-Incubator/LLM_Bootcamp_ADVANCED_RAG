@@ -1,10 +1,11 @@
 import os
-# Set USER_AGENT environment variable
-os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from langchain_ollama import OllamaEmbeddings, OllamaLLM
 from langchain_community.vectorstores import Chroma
-from langchain_community.document_loaders import WebBaseLoader
+from langchain_community.document_loaders import WikipediaLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -39,12 +40,7 @@ https://arxiv.org/abs/2402.03367
 
 # ---- STEP 1: Load Blog ----
 
-loader = WebBaseLoader(
-    web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
-    bs_kwargs=dict(
-        parse_only=bs4.SoupStrainer(class_=("post-content", "post-title", "post-header"))
-    ),
-)
+loader = WikipediaLoader(query="Immunotherapy", lang="en", load_max_docs=3)
 docs = loader.load()
 print(f"Loaded {len(docs)} documents.")
 
@@ -65,12 +61,14 @@ print("Documents embedded and indexed in Chroma.")
 
 llm = OllamaLLM(model="llama3.2", temperature=0)
 
-prompt_rag_fusion = ChatPromptTemplate.from_template("""
+prompt_rag_fusion = ChatPromptTemplate.from_template(
+    """
 You are a helpful assistant that generates multiple search queries based on a single input query. 
 Generate 4 search queries related to: {question}
 
 Output (one per line):
-""")
+"""
+)
 
 generate_queries_chain = (
     {"question": RunnablePassthrough()}
@@ -82,6 +80,7 @@ generate_queries_chain = (
 
 # ---- STEP 5: Reciprocal Rank Fusion (RRF) ----
 
+
 def reciprocal_rank_fusion(results_lists, k=60):
     fused_scores = {}
     for results in results_lists:
@@ -90,11 +89,19 @@ def reciprocal_rank_fusion(results_lists, k=60):
             score = 1 / (k + rank)
             fused_scores[doc_id] = fused_scores.get(doc_id, 0) + score
     sorted_docs = sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
-    return [doc for doc_id, _ in sorted_docs for results in results_lists for doc in results if doc.page_content.startswith(doc_id)]
+    return [
+        doc
+        for doc_id, _ in sorted_docs
+        for results in results_lists
+        for doc in results
+        if doc.page_content.startswith(doc_id)
+    ]
+
 
 # ---- STEP 6: Prompt for Answer Generation with Fallback ----
 
-rag_prompt = ChatPromptTemplate.from_template("""
+rag_prompt = ChatPromptTemplate.from_template(
+    """
 You are a helpful assistant.
 
 Use the following context to answer the user's question. 
@@ -104,12 +111,14 @@ Context:
 {context}
 
 Question: {question}
-""")
+"""
+)
 
 # ---- STEP 7: Run a Query with RAG-Fusion ----
 
-question = "How do autonomous agents use memory ?"
-print(f"\n User Original Question: {question}")
+question = "How does immunotherapy work in cancer treatment?"
+print(f"\n=== User Question ===")
+print(question)
 
 queries = generate_queries_chain.invoke(question)
 
@@ -138,13 +147,13 @@ answer_chain = (
     | StrOutputParser()
 )
 
-final_answer = answer_chain.invoke(question)
+answer = answer_chain.invoke(question)
+
+print("\n=== Final Answer ===")
+print(answer)
 
 # ---- STEP 8: Display Results ----
 
-print("\n📚 Top Retrieved Context Chunks:")
+print("\nTop Retrieved Context Chunks:")
 for i, doc in enumerate(final_results[:3], 1):
     print(f"\n[{i}] {doc.page_content[:500]}...\n---")
-
-print("\n💡 Final Answer:")
-print(final_answer)

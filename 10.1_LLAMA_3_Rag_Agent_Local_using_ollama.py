@@ -1,21 +1,20 @@
-
 import os
-# Set USER_AGENT environment variable
-os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from typing import TypedDict, List
 from pprint import pprint
 import bs4
 
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
-from langchain_community.document_loaders import WebBaseLoader
+from langchain_community.document_loaders import WikipediaLoader
 from langchain_community.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
 from langgraph.graph import StateGraph, END
-
 
 
 """
@@ -82,16 +81,7 @@ If the answer is not useful, simulate a web search for additional context.
 
 # ---- STEP 1: Load, Split & Embed ----
 
-urls = [
-    "https://lilianweng.github.io/posts/2023-06-23-agent/",
-    "https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/",
-    "https://lilianweng.github.io/posts/2023-10-25-adv-attack-llm/",
-]
-
-loader = WebBaseLoader(
-    web_paths=urls,
-    bs_kwargs={"parse_only": bs4.SoupStrainer(class_=("post-content", "post-title", "post-header"))}
-)
+loader = WikipediaLoader(query="Antibiotic resistance", lang="en", load_max_docs=3)
 docs = loader.load()
 
 splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=0)
@@ -108,7 +98,8 @@ parser = StrOutputParser()
 
 # ---- STEP 3: Prompts ----
 
-generate_prompt = ChatPromptTemplate.from_template("""
+generate_prompt = ChatPromptTemplate.from_template(
+    """
 Use the following context to answer the user's question.
 
 Context:
@@ -116,10 +107,12 @@ Context:
 
 Question:
 {question}
-""")
+"""
+)
 generate_chain = generate_prompt | llm | parser
 
-grade_doc_prompt = PromptTemplate.from_template("""
+grade_doc_prompt = PromptTemplate.from_template(
+    """
 Does the following document help answer the question?
 
 Document:
@@ -129,9 +122,11 @@ Question:
 {question}
 
 Respond with 'yes' or 'no' only.
-""")
+"""
+)
 
 # ---- STEP 4: LangGraph State ----
+
 
 class GraphState(TypedDict):
     question: str
@@ -140,16 +135,23 @@ class GraphState(TypedDict):
     web_search: str
     fallback_used: bool
 
+
 # ---- STEP 5: Graph Nodes ----
+
 
 def retrieve(state: GraphState):
     docs = retriever.invoke(state["question"])
     return {"documents": docs, "question": state["question"], "fallback_used": False}
 
+
 def grade_documents(state: GraphState):
     relevant_docs = []
     for doc in state["documents"]:
-        result = llm.invoke(grade_doc_prompt.format(document=doc.page_content, question=state["question"]))
+        result = llm.invoke(
+            grade_doc_prompt.format(
+                document=doc.page_content, question=state["question"]
+            )
+        )
         if "yes" in result.lower():
             relevant_docs.append(doc)
     web_search_flag = "Yes" if not relevant_docs else "No"
@@ -157,8 +159,9 @@ def grade_documents(state: GraphState):
         "documents": relevant_docs,
         "question": state["question"],
         "web_search": web_search_flag,
-        "fallback_used": False
+        "fallback_used": False,
     }
+
 
 def decide_to_generate(state: GraphState):
     # If the retrieved documents are not enough, simulate a web search.
@@ -167,14 +170,15 @@ def decide_to_generate(state: GraphState):
     else:
         return "websearch"
 
+
 def web_search(state: GraphState):
     print("Simulated web search used.")
     # Simulate web search by returning a placeholder document
-    fake_result = Document(page_content=f"Simulated web content for: {state['question']}")
-    return {
-        "documents": [fake_result],
-        "question": state["question"]
-    }
+    fake_result = Document(
+        page_content=f"Simulated web content for: {state['question']}"
+    )
+    return {"documents": [fake_result], "question": state["question"]}
+
 
 def generate(state: GraphState):
     context = "\n\n".join(doc.page_content for doc in state["documents"])
@@ -183,18 +187,22 @@ def generate(state: GraphState):
         "question": state["question"],
         "documents": state["documents"],
         "generation": answer,
-        "fallback_used": False
+        "fallback_used": False,
     }
+
 
 def fallback(state: GraphState):
     print("🤖 Using LLM to answer directly (fallback mode).")
-    answer = llm.invoke(f"Answer the following using your own knowledge:\n{state['question']}")
+    answer = llm.invoke(
+        f"Answer the following using your own knowledge:\n{state['question']}"
+    )
     return {
         "question": state["question"],
         "documents": [],
         "generation": answer,
-        "fallback_used": True
+        "fallback_used": True,
     }
+
 
 # ---- STEP 6: Build LangGraph ----
 
@@ -209,10 +217,14 @@ graph.add_node("websearch", web_search)
 graph.set_entry_point("retrieve")
 graph.add_edge("retrieve", "grade_documents")
 
-graph.add_conditional_edges("grade_documents", decide_to_generate, {
-    "generate": "generate",
-    "websearch": "websearch"  # Make sure the websearch path is handled
-})
+graph.add_conditional_edges(
+    "grade_documents",
+    decide_to_generate,
+    {
+        "generate": "generate",
+        "websearch": "websearch",  # Make sure the websearch path is handled
+    },
+)
 
 graph.add_edge("websearch", "generate")  # Route to next step if web search happens
 graph.add_edge("generate", END)
@@ -222,14 +234,11 @@ app = graph.compile()
 
 # ---- STEP 7: Run the Agent ----
 
-question = "What are the different types of agent memory?" 
+question = "What is antibiotic resistance and why is it a concern?"
 
-inputs = {
-    "question": question,
-    "fallback_used": False
-}
+inputs = {"question": question, "fallback_used": False}
 
-print("\n=== 🧠 Running LLAMA 3 RAG Agent with Fallback ===")
+print("\n=== Running LLAMA 3 RAG Agent with Fallback ===")
 for step in app.stream(inputs):
     for node, value in step.items():
         print(f"\n Node: {node}")

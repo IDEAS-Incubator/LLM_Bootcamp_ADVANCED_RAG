@@ -3,12 +3,13 @@ from typing import TypedDict, List
 from pprint import pprint
 import bs4
 
-# Set USER_AGENT environment variable
-os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain_community.document_loaders import WebBaseLoader
+from langchain_community.document_loaders import WikipediaLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
 from langchain_core.messages import HumanMessage
@@ -74,30 +75,23 @@ Iterative Improvement: Repeat the process until relevant documents are found or 
 """
 # ----- STEP 1: Load, Split & Index Docs -----
 
-urls = [
-    "https://lilianweng.github.io/posts/2023-06-23-agent/",
-    "https://lilianweng.github.io/posts/2023-03-15-prompt-engineering/",
-    "https://lilianweng.github.io/posts/2023-10-25-adv-attack-llm/"
-]
+question = "What are common mental health disorders?"
 
-docs = []
-for url in urls:
-    loader = WebBaseLoader(
-        web_paths=(url,),
-        bs_kwargs=dict(parse_only=bs4.SoupStrainer(class_=("post-content", "post-title", "post-header")))
-    )
-    docs.extend(loader.load())
+docs = WikipediaLoader(query="Mental health", lang="en", load_max_docs=3).load()
 
 splitter = RecursiveCharacterTextSplitter(chunk_size=250, chunk_overlap=50)
 splits = splitter.split_documents(docs)
 
 embedding_model = OllamaEmbeddings(model="nomic-embed-text")
-vectorstore = Chroma.from_documents(splits, embedding=embedding_model, collection_name="agentic-rag")
+vectorstore = Chroma.from_documents(
+    splits, embedding=embedding_model, collection_name="agentic-rag"
+)
 retriever = vectorstore.as_retriever()
 
 llm = OllamaLLM(model="llama3.2", temperature=0)
 
 # ----- STEP 2: Define Graph State -----
+
 
 class AgentState(TypedDict):
     messages: List[HumanMessage]
@@ -105,9 +99,11 @@ class AgentState(TypedDict):
     question: str
     generation: str
 
+
 # ----- STEP 3: Prompts -----
 
-doc_grader_prompt = PromptTemplate.from_template("""
+doc_grader_prompt = PromptTemplate.from_template(
+    """
 You are grading whether retrieved context is relevant to the user's question.
 
 Question: {question}
@@ -115,43 +111,54 @@ Context:
 {context}
 
 Reply with "yes" or "no" and explain briefly.
-""")
+"""
+)
 
-rewrite_prompt = PromptTemplate.from_template("""
+rewrite_prompt = PromptTemplate.from_template(
+    """
 Rewrite the following question to be more specific and clear:
 
 Original question: {question}
 
 Rewritten question:
-""")
+"""
+)
 
-rag_prompt = PromptTemplate.from_template("""
+rag_prompt = PromptTemplate.from_template(
+    """
 Use the following context to answer the question.
 
 Context:
 {context}
 
 Question: {question}
-""")
+"""
+)
 
 # ----- STEP 4: Define Graph Nodes -----
 
+
 def agent(state: AgentState):
-    question = state["messages"][0].content
+    question = state["question"]
     return {"question": question}
+
 
 def retrieve(state: AgentState):
     question = state["question"]
     docs = retriever.invoke(question)
     return {"question": question, "docs": docs}
 
+
 def grade_documents(state: AgentState):
     question = state["question"]
     context = "\n\n".join(doc.page_content for doc in state["docs"])
-    result = llm.invoke(doc_grader_prompt.format(question=question, context=context)).lower()
+    result = llm.invoke(
+        doc_grader_prompt.format(question=question, context=context)
+    ).lower()
 
     print("\n Document grading result:", result)
     return "yes" if "yes" in result else "no"
+
 
 def rewrite(state: AgentState):
     original = state["question"]
@@ -166,11 +173,13 @@ def generate(state: AgentState):
     answer = llm.invoke(prompt)
     return {"generation": answer}
 
+
 def fallback(state: AgentState):
     question = state["question"]
     print("⚠️ Using LLM knowledge to answer directly (no relevant context).")
     answer = llm.invoke(f"Answer this using your own knowledge:\n{question}")
     return {"generation": answer}
+
 
 # ----- STEP 5: Build LangGraph -----
 
@@ -184,19 +193,15 @@ graph.add_node("fallback", fallback)
 
 graph.set_entry_point("agent")
 
-graph.add_conditional_edges("agent", lambda _: "continue", {
-    "continue": "retrieve"
-})
+graph.add_conditional_edges("agent", lambda _: "continue", {"continue": "retrieve"})
 
-graph.add_conditional_edges("retrieve", grade_documents, {
-    "yes": "generate",
-    "no": "rewrite",
-    "fallback": "fallback"
-})
+graph.add_conditional_edges(
+    "retrieve",
+    grade_documents,
+    {"yes": "generate", "no": "rewrite", "fallback": "fallback"},
+)
 
-graph.add_conditional_edges("rewrite", lambda _: "continue", {
-    "continue": "retrieve"
-})
+graph.add_conditional_edges("rewrite", lambda _: "continue", {"continue": "retrieve"})
 
 graph.add_edge("generate", END)
 graph.add_edge("fallback", END)
@@ -205,19 +210,15 @@ app = graph.compile()
 
 # ----- STEP 6: Run the Agent -----
 
-inputs = {
-    "messages": [
-        HumanMessage(content="What does Lilian Weng say about the types of agent memory?")
-    ]
-}
+inputs = {"question": question}
 
 print("\n=== Running Agentic RAG ===")
 
 for step in app.stream(inputs):
-    for key, value in step.items():
-        print(f"\n Node: {key}")
-        pprint(value)
+    for node, val in step.items():
+        print(f"\n Node: {node}")
+        pprint(val)
         print("\n---")
 
 print("\n Final Answer:")
-print(value.get("generation"))
+pprint(val.get("generation"))

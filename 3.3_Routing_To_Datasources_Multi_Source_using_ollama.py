@@ -1,6 +1,7 @@
 import os
-# Set USER_AGENT environment variable
-os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain_core.prompts import PromptTemplate
@@ -27,20 +28,21 @@ prompt_templates = [physics_template, math_template]
 embedding_model = OllamaEmbeddings(model="nomic-embed-text")
 prompt_embeddings = embedding_model.embed_documents(prompt_templates)
 
+
 # Step 3: Create router logic for multiple sources
 def prompt_router(input):
     query_embedding = embedding_model.embed_query(input["query"])
     similarity_scores = cosine_similarity([query_embedding], prompt_embeddings)[0]
-    
+
     # Get all prompts with similarity above threshold
     threshold = 0.3
     selected_indices = np.where(similarity_scores >= threshold)[0]
-    
+
     if len(selected_indices) == 0:
         # If no prompts meet the threshold, use the best one
         best_index = np.argmax(similarity_scores)
         selected_indices = [best_index]
-    
+
     print("\n=== Prompt Routing Decision ===")
     selected_prompts = []
     for idx in selected_indices:
@@ -49,7 +51,7 @@ def prompt_router(input):
         else:
             print(f"Using MATH prompt (Confidence: {similarity_scores[idx]:.2f})")
         selected_prompts.append(prompt_templates[idx])
-    
+
     # Create a combined prompt
     combined_prompt = """You are an expert in both physics and mathematics.
 
@@ -64,12 +66,14 @@ def prompt_router(input):
     """
 
     # Format the perspectives
-    perspectives = "\n\n".join([f"Perspective {i+1}:\n{prompt}" for i, prompt in enumerate(selected_prompts)])
-    
-    return PromptTemplate.from_template(combined_prompt).format(
-        perspectives=perspectives,
-        query=input["query"]
+    perspectives = "\n\n".join(
+        [f"Perspective {i+1}:\n{prompt}" for i, prompt in enumerate(selected_prompts)]
     )
+
+    return PromptTemplate.from_template(combined_prompt).format(
+        perspectives=perspectives, query=input["query"]
+    )
+
 
 # Step 4: Create the full chain
 llm = OllamaLLM(model="llama3.2")
@@ -87,16 +91,16 @@ questions = [
     "What is the derivative of x^2?",
     "How does quantum entanglement work?",
     "What is the Pythagorean theorem?",
-    "What is the relationship between energy and mass?"  # This should use both perspectives
+    "What is the relationship between energy and mass?",  # This should use both perspectives
 ]
 
 print("\n=== Testing Multi-Source Router with Different Questions ===")
 for question in questions:
     print("\n=== User Question ===")
     print(question)
-    
+
     response = chain.invoke(question)
-    
+
     print("\n=== Final Answer ===")
     print(response)
-    print("-" * 80) 
+    print("-" * 80)

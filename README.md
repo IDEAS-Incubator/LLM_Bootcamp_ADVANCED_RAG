@@ -1,6 +1,6 @@
 # RAG Data Preprocessing & Embedding Pipeline
 
-This project provides a robust pipeline for preparing and embedding text data for Retrieval-Augmented Generation (RAG) and other NLP tasks. It includes data cleanup, chunking, and embedding using the `nomic-embed-text` model from Ollama.
+This project provides a robust pipeline for preparing and embedding text data for Retrieval-Augmented Generation (RAG) and other NLP tasks. It includes data cleanup, chunking, embedding using the `nomic-embed-text` model from Ollama, and advanced retrieval mechanisms.
 
 ---
 
@@ -9,47 +9,63 @@ This project provides a robust pipeline for preparing and embedding text data fo
 - **Chunking:** Split large documents into overlapping chunks for better context retention.
 - **Embedding:** Generate high-quality vector embeddings using Ollama's `nomic-embed-text` model.
 - **Similarity Search:** Find the most relevant text chunks for a given query.
+- **Advanced RAG Techniques:** Includes query transformations, routing, indexing, agentic RAG, and more.
 
 ---
 
 ## Setup
 
 1. **Clone the repository**
-2. **Install dependencies:**
+   ```bash
+   git clone https://github.com/IDEAS-Incubator/LLM_Bootcamp_ADVANCED_RAG
+   ```
+2. **Create conda env**
+   ```bash
+   conda create -n adrag python=3.12
+   ```
+3. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
-3. **(Optional) Set up your virtual environment**
+4. **Set up your environment**
+   ```bash
+   cp .env.example .env
+   ```
 
 ---
 
 ## Usage
 
-### 1. Data Cleanup
-See `RAG_optimization/Data preprocessing/1.1_data_cleanup_techbologies.py` for advanced text cleaning functions.
+The main scripts are located in the project root. Each script covers a specific aspect of the RAG pipeline or advanced RAG techniques:
 
-### 2. Chunking
-Use the provided chunking functions to split your cleaned text into overlapping chunks.
+| Script | Description |
+|--------|-------------|
+| `1.1_Introduction_To_RAG_using_ollama.py` | Basic RAG introduction and workflow |
+| `2.1_...` to `2.5_...` | Query transformation techniques (MultiQuery, RAG Fusion, Decomposition, StepBack, HyDE) |
+| `3.1_...` to `3.3_...` | Routing to data sources (base, semantic, multi-source) |
+| `4.1_...` to `4.3_...` | Indexing to vector DBs (multi-representation, RAPTOR, ColBERT) |
+| `5.1_Retrieval_Mechanisms_using_ollama.py` | Retrieval mechanisms |
+| `6.1_Self_Reflection_RAG_using_ollama.py` | Self-reflection in RAG |
+| `7.1_Agentic_Rag_using_ollama.py` | Agentic RAG |
+| `8.1_Adaptive_Rag_Agent_using_ollama.py` | Adaptive RAG agent |
+| `9.1_Corrective_Rag_Agent_using_ollama.py` | Corrective RAG agent |
+| `10.1_LLAMA_3_Rag_Agent_Local_using_ollama.py` | LLAMA 3 RAG agent (local) |
 
-### 3. Embedding
-Generate embeddings for each chunk using Ollama:
+---
+
+### Example: Generating Embeddings
+
+Use the following code to generate embeddings for a text chunk using Ollama:
 ```python
 import ollama
 response = ollama.embeddings(model='nomic-embed-text', prompt="your text chunk here")
 embedding = response['embedding']
 ```
 
-### 4. Similarity Search
-Use cosine similarity (e.g., with scikit-learn) to compare query embeddings to your chunk embeddings.
-
 ---
 
-## Example Pipeline
-See the code in `RAG_optimization/Data preprocessing/1.3_embedding_using_ollama.py` for a full example, including:
-- Data cleanup
-- Chunking
-- Embedding
-- Similarity search
+### Example: Similarity Search
+Use cosine similarity (e.g., with scikit-learn) to compare query embeddings to your chunk embeddings.
 
 ---
 
@@ -57,6 +73,3 @@ See the code in `RAG_optimization/Data preprocessing/1.3_embedding_using_ollama.
 See `requirements.txt` for all dependencies.
 
 ---
-
-## License
-MIT 

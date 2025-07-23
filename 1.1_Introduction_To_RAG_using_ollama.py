@@ -1,12 +1,13 @@
 # pip install -U langchain langchain-community langchain-ollama chromadb beautifulsoup4
 
 import os
-# Set USER_AGENT environment variable
-os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import WebBaseLoader
+from langchain_community.document_loaders import WikipediaLoader
 from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
@@ -30,14 +31,7 @@ PERSIST_DIRECTORY = "./database/chroma_db"
 # Rest of your code remains the same
 if not os.path.exists(PERSIST_DIRECTORY):
     # If the database doesn't exist, process and save the data
-    loader = WebBaseLoader(
-        web_paths=("https://lilianweng.github.io/posts/2023-06-23-agent/",),
-        bs_kwargs=dict(
-            parse_only=bs4.SoupStrainer(
-                class_=("post-content", "post-title", "post-header")
-            )
-        ),
-    )
+    loader = WikipediaLoader(query="Cancer", lang="en", load_max_docs=3)
     docs = loader.load()
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
@@ -71,15 +65,25 @@ Question: {question}
 
 llm = OllamaLLM(model="llama3.2")  # or any model you have installed
 
+
 def format_docs(docs):
     return "\n\n".join([doc.page_content for doc in docs])
 
 
 rag_chain = (
-    {"context": retriever | RunnableLambda(format_docs), "question": RunnablePassthrough()}
+    {
+        "context": retriever | RunnableLambda(format_docs),
+        "question": RunnablePassthrough(),
+    }
     | RunnableLambda(lambda x: prompt_template.format(**x))
     | llm
     | StrOutputParser()
 )
+question = "What are the main types of cancer?"
+print(f"\n=== User Question ===")
+print(question)
 
-print(rag_chain.invoke("Types of Memory?"))
+response = rag_chain.invoke(question)
+
+print(f"\n=== Final Answer ===")
+print(response)

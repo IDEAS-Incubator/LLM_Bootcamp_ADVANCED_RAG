@@ -1,6 +1,7 @@
 import os
-# Set USER_AGENT environment variable
-os.environ["USER_AGENT"] = "MyCustomUserAgent/1.0"
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from langchain_ollama import OllamaLLM, OllamaEmbeddings
 from langchain_core.prompts import PromptTemplate
@@ -32,6 +33,7 @@ prompt_templates = [physics_template, math_template]
 embedding_model = OllamaEmbeddings(model="nomic-embed-text")
 prompt_embeddings = embedding_model.embed_documents(prompt_templates)
 
+
 # Step 3: Create router logic
 def prompt_router(input):
     query_embedding = embedding_model.embed_query(input["query"])
@@ -43,6 +45,7 @@ def prompt_router(input):
     # need to update the code
     print("Using MATH prompt" if best_index == 1 else "Using PHYSICS prompt")
     return PromptTemplate.from_template(chosen_prompt)
+
 
 # Step 4: Create the full chain
 llm = OllamaLLM(model="llama3.2")
